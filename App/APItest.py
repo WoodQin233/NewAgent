@@ -1,27 +1,3 @@
-# NewAgent
-突发奇想做个Agent吧！
-
-## MiniMax API 模块
-
-### 功能说明
-
-提供接口调用 MiniMax-M2.7 模型。
-
-### 依赖
-
-- Python 3.10+
-- `anthropic`
-
-### 环境配置
-
-设置环境变量：
-   ```powershell
-   $env:MINIMAX_API_KEY="your_api_key_here"
-   ```
-
-### 快速开始
-
-```python
 import MiniMaxAPI
 
 #获取客户端
@@ -36,5 +12,4 @@ for item in response["content"]:
         print(f"思考:\n{item['text']}\n")
     elif item["type"] == "text":                #输出回复内容
         print(f"回复:\n{item['text']}\n")
-```
 
