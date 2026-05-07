@@ -27,17 +27,18 @@ class Config:
 
     def __post_init__(self):
         if not self.api_key:
-            with open("key.txt", 'r', encoding='utf-8') as file:
-                self.api_key = file.read().strip()
-        if not self.api_key:
-            self.api_key = os.getenv("MINIMAX_API_KEY")
-            with open("key.txt", 'w', encoding='utf-8') as file:
-                file.write(self.api_key or "")
-        if not self.api_key:
-            self.api_key = input("请输入MiniMax API密钥:").strip()
-            with open("key.txt", 'w', encoding='utf-8') as file:
-                file.write(self.api_key or "")
-          
+            try:
+                with open("key.txt", 'r', encoding='utf-8') as file:
+                    self.api_key = file.read().strip()
+            except :
+                if not self.api_key:
+                    self.api_key = os.getenv("MINIMAX_API_KEY")
+                    with open("key.txt", 'w', encoding='utf-8') as file:
+                        file.write(self.api_key or "")
+                if not self.api_key:
+                    self.api_key = input("请输入MiniMax API密钥:").strip()
+                    with open("key.txt", 'w', encoding='utf-8') as file:
+                        file.write(self.api_key or "")
 
 
 class MiniMaxClient:
