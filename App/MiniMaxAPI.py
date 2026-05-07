@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional, Literal, Dict, Any, List
 import anthropic
 
-
+    
 
 
 
@@ -13,6 +13,7 @@ class Message:
     """表示对话中的单条消息"""
     role: Literal["user", "assistant"]
     content: str
+
 
 
 @dataclass
@@ -26,12 +27,17 @@ class Config:
 
     def __post_init__(self):
         if not self.api_key:
-            self.api_key = os.getenv("MINIMAX_API_KEY")
+            with open("key.txt", 'r', encoding='utf-8') as file:
+                self.api_key = file.read().strip()
         if not self.api_key:
-            raise AuthenticationError(
-                "未找到API密钥，请设置 MINIMAX_API_KEY 环境变量 "
-                "或传入 api_key 参数"
-            )
+            self.api_key = os.getenv("MINIMAX_API_KEY")
+            with open("key.txt", 'w', encoding='utf-8') as file:
+                file.write(self.api_key or "")
+        if not self.api_key:
+            self.api_key = input("请输入MiniMax API密钥:").strip()
+            with open("key.txt", 'w', encoding='utf-8') as file:
+                file.write(self.api_key or "")
+          
 
 
 class MiniMaxClient:
@@ -112,7 +118,9 @@ class MiniMaxClient:
             return result
 
         except Exception as e:
-            raise APIResponseError(f"API请求失败: {str(e)}") from e
+            print(f"API请求失败，本地文件Key.txt已清除: {str(e)}")
+            open("key.txt", 'w', encoding='utf-8').close
+
 
     @property
     def text(self) -> str:
