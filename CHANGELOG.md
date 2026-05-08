@@ -1,5 +1,13 @@
 # 更新日志
 
+## dev 0.0.2 - 2025-05-08
+
+### 新增
++ langchain_community
++ 用langchain-anthropic接管了原有的char接口
+- key参数改为api_key，且不再支持直接传入key参数，必须通过环境变量或配置文件设置
++ Tools接口的初步设计和实现
+
 ## dev 0.0.1 - 2025-05-07
 
 ### 新增

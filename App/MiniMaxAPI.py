@@ -3,9 +3,11 @@ from dataclasses import dataclass
 from typing import Optional, Literal, Dict, Any, List
 import anthropic
 
-    
+from langchain_anthropic import chat_models
+from langchain.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from langchain.tools import tool
 
-
+import Tools.test_tools as TestTools
 
 #这是用于多轮对话的，目前这个功能还没实现
 @dataclass
@@ -27,19 +29,11 @@ class Config:
 
     def __post_init__(self):
         if not self.api_key:
-            try:
-                with open("key.txt", 'r', encoding='utf-8') as file:
-                    self.api_key = file.read().strip()
-            except :
-                if not self.api_key:
-                    self.api_key = os.getenv("MINIMAX_API_KEY")
-                    with open("key.txt", 'w', encoding='utf-8') as file:
-                        file.write(self.api_key or "")
-                if not self.api_key:
-                    self.api_key = input("请输入MiniMax API密钥:").strip()
-                    with open("key.txt", 'w', encoding='utf-8') as file:
-                        file.write(self.api_key or "")
+            self.api_key = os.getenv("MINIMAX_API_KEY")
+        if not self.api_key:
+            self.api_key = "114514"
 
+            
 
 class MiniMaxClient:
     """MiniMax API交互客户端
@@ -76,17 +70,26 @@ class MiniMaxClient:
             api_key=self.config.api_key,
             base_url=self.config.base_url
         )
+        self.langmodel = chat_models.ChatAnthropic(
+                model=self.config.model,
+                api_key=self.config.api_key,
+                base_url=self.config.base_url,
+                max_tokens=self.config.max_tokens,
+                timeout=self.config.timeout
+        ) 
+        
+    
 
     def chat(
         self,
-        message: str,
+        user: str,
         system: str = "你是高级硅基生物，使命是辅助我完成任务，你需要回答我问你的问题",
         **kwargs
     ) -> Dict[str, Any]:
         """发送聊天消息并获取响应
 
         参数说明:
-            message: 用户消息
+            user: 用户消息
             system: 系统提示词
             **kwargs: 额外参数（max_tokens, temperature等）
 
@@ -97,30 +100,29 @@ class MiniMaxClient:
             APIResponseError: API返回错误时
         """
         try:
-            response = self._client.messages.create(
-                model=self.config.model,
-                max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-                system=system,
-                messages=[{
-                    "role": "user",
-                    "content": [{"type": "text", "text": message}]
-                }],
-                temperature=kwargs.get("temperature"),
-                top_p=kwargs.get("top_p")
-            )
+            # 绑定工具到语言模型
+            self.langmodel.bind_tools([TestTools.TestTool])
+                #消息列表，包含系统提示,用户消息,AI回复和工具信息(AI回复和工具信息一般由AI生成)
+            messages = [
+                SystemMessage(system),
+                HumanMessage(user),
+                AIMessage(""),
+            ]
 
-            result = {"content": [], "usage": response.usage}
-            for block in response.content:
-                if block.type == "thinking":
-                    result["content"].append({"type": "thinking", "text": block.thinking})
-                elif block.type == "text":
-                    result["content"].append({"type": "text", "text": block.text})
+            response = self.langmodel.invoke(messages)
+            for tool_call in response.tool_calls:
+                # 使用生成的参数执行工具
+                tool_result = TestTools.TestTool.invoke(tool_call)
+                messages.append(tool_result)
 
-            return result
+            # 将结果传递回模型以获取最终响应
+            final_response = self.langmodel.invoke(messages)
+            
+            return final_response.text
 
         except Exception as e:
-            print(f"API请求失败，本地文件Key.txt已清除: {str(e)}")
-            open("key.txt", 'w', encoding='utf-8').close
+            print(f"API请求失败{str(e)}")
+            
 
 
     @property
@@ -143,23 +145,4 @@ def get_client() -> MiniMaxClient:
 if __name__ == "__main__":
     client = get_client()
     result = client.chat("你好，近况如何？")
-
-    for item in result["content"]:
-        if item["type"] == "thinking":
-            print(f"思考:\n{item['text']}\n")
-        elif item["type"] == "text":
-            print(f"回复:\n{item['text']}\n")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    print(result)
