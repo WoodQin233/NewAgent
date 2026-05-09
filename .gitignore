@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE - VS Code
+.vscode/
+
+# IDE - Visual Studio (for collaborators)
+.vs/
+
+# IDE - JetBrains
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Local configuration
+.env
+.env.local
+
+# Output files
+output/
+output_history/
+
+# UV
+uv.lock
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
