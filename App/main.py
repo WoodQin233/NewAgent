@@ -1,10 +1,10 @@
 from ctypes.wintypes import PUINT
 
-import App.MiniMaxAPI
+import client as Client
 
 def main():
     #获取客户端
-    client = App.MiniMaxAPI.MiniMaxClient()
+    client = Client.MiniMaxClient()
 
     #生成对话结果
     response = client.chat("你好！")

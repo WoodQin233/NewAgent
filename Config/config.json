@@ -1,0 +1,30 @@
+{
+  "app": {
+    "name": "PPT Agent",
+    "version": "1.0.0",
+    "default_template": "blank",
+    "output_dir": "output",
+    "history_dir": "output/history",
+    "max_history_count": 100
+  },
+  "api": {
+    "provider": "minimax",
+    "base_url": "https://api.minimaxi.com/anthropic",
+    "model": "MiniMax-M2.7",
+    "max_tokens": 4096,
+    "timeout": 60,
+    "retry": {
+      "max_attempts": 3,
+      "backoff_factor": 2
+    }
+  },
+  "logging": {
+    "level": "DEBUG",
+    "file": "logs/app.log",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  "document": {
+    "supported_formats": [".txt", ".docx", ".doc", ".pdf"],
+    "max_file_size_mb": 50
+  }
+}
