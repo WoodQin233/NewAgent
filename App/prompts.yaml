@@ -1,0 +1,4 @@
+_type: prompts
+input_variables:
+    ["name"]
+template: "What is the meaning of the name {name}?"
