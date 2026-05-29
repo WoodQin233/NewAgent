@@ -26,3 +26,7 @@ temp_char = ChatPromptTemplate.format_messages( [
             SystemMessage("")
         ]
     )
+
+if __name__ == "__main__":
+    po=load_prompt("prompts/name_prompt.yaml")
+    print(po.format(name="张三"))

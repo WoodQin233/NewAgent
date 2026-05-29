@@ -7,6 +7,8 @@ from langchain_anthropic import chat_models
 from langchain.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain.tools import tool
 
+
+
 import test_tools as TestTools
 
 #这是用于多轮对话的，目前这个功能还没实现
@@ -26,6 +28,7 @@ class Config:
     model: str = "MiniMax-M2.7"
     max_tokens: int = 1024
     timeout: Optional[float] = None
+    temperature: float = 0.7
 
     def __post_init__(self):
         if not self.api_key:
@@ -44,6 +47,7 @@ class MiniMaxClient:
         model: 使用的模型（默认: MiniMax-M2.7）
         max_tokens: 响应中的最大token数
         timeout: 请求超时时间（秒）
+        temperature: 生成文本的随机程度（0-1）
 
     使用示例:
         >>> client = MiniMaxClient()
@@ -75,7 +79,8 @@ class MiniMaxClient:
                 api_key=self.config.api_key,
                 base_url=self.config.base_url,
                 max_tokens=self.config.max_tokens,
-                timeout=self.config.timeout
+                timeout=self.config.timeout,
+                temperature=self.config.temperature
         ) 
         
     
