@@ -87,15 +87,13 @@ class MiniMaxClient:
 
     def chat(
         self,
-        user: str,
-        system: str = "你是高级硅基生物，使命是辅助我完成任务，你需要回答我问你的问题",
+        messages: List[Message],
         **kwargs
     ) -> Dict[str, Any]:
         """发送聊天消息并获取响应
 
         参数说明:
-            user: 用户消息
-            system: 系统提示词
+            messages: 消息列表
             **kwargs: 额外参数（max_tokens, temperature等）
 
         返回值:
@@ -107,12 +105,6 @@ class MiniMaxClient:
         try:
             # 绑定工具到语言模型
             self.langmodel.bind_tools([TestTools.TestTool])
-                #消息列表，包含系统提示,用户消息,AI回复和工具信息(AI回复和工具信息一般由AI生成)
-            messages = [
-                SystemMessage(system),
-                HumanMessage(user),
-                AIMessage(""),
-            ]
 
             response = self.langmodel.invoke(messages)
             for tool_call in response.tool_calls:
@@ -127,8 +119,6 @@ class MiniMaxClient:
 
         except Exception as e:
             print(f"API请求失败{str(e)}")
-            
-
 
     @property
     def text(self) -> str:
@@ -136,18 +126,9 @@ class MiniMaxClient:
         return ""
 
 
-_client_instance: Optional[MiniMaxClient] = None
-
-
-def get_client() -> MiniMaxClient:
-    """获取或创建单例客户端实例"""
-    global _client_instance
-    if _client_instance is None:
-        _client_instance = MiniMaxClient()
-    return _client_instance
-
 
 if __name__ == "__main__":
-    client = get_client()
-    result = client.chat("你好，近况如何？")
+    client = MiniMaxClient()
+    messages = [HumanMessage(content="你好，近况如何？")]
+    result = client.chat(messages)
     print(result)
