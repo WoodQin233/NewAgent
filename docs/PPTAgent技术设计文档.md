@@ -196,7 +196,6 @@ class Config:
 class DocumentContent:
     """解析后的文档内容"""
     raw_text: str                          # 原始文本
-    paragraphs: List[str]                  # 段落列表
     tables: List[TableData]                # 表格列表
     metadata: DocumentMetadata              # 元数据
 
@@ -212,7 +211,6 @@ class DocumentMetadata:
     file_name: str                          # 文件名
     file_type: str                          # 文件类型
     file_size: int                          # 文件大小
-    page_count: Optional[int] = None        # 页数（PDF）
 ```
 
 #### 3.1.2 AnalysisResult - AI 分析结果
@@ -223,8 +221,8 @@ class AnalysisResult:
     """AI 分析结果"""
     title: str                              # PPT 标题
     slides: List[SlideContent]              # 幻灯片内容列表
-    outline: str                            # 大纲文本
     summary: str                            # 总结
+    notes: Optional[str] = None             # 演讲者备注
 
 @dataclass
 class SlideContent:
@@ -232,21 +230,6 @@ class SlideContent:
     slide_number: int                       # 幻灯片编号
     title: str                              # 页面标题
     bullet_points: List[str]                # 要点列表
-    notes: Optional[str] = None             # 演讲者备注
-```
-
-#### 3.1.3 PPTGenerationConfig - 生成配置
-
-```python
-@dataclass
-class PPTGenerationConfig:
-    """PPT 生成配置"""
-    template_name: str = "blank"           # 模板名称
-    slide_width: int = 9144000             # 幻灯片宽度（EMU）
-    slide_height: int = 6858000            # 幻灯片高度（EMU）
-    font_name: str = "微软雅黑"
-    font_size_title: int = 44
-    font_size_content: int = 24
 ```
 
 ### 3.2 数据流图
@@ -935,4 +918,5 @@ PPT_Agent/
 
 | 版本 | 日期 | 变更内容 | 作者 |
 |------|------|----------|------|
-| 1.0 | 2026-05-08 | 初始版本 | 产品研发团队 |
+| 1.0 | 2026-05-08 | 初始版本 | WoodQin |
+| 1.1 | 2026-05-28 | 删去 3.1 核心数据模型 中的冗余内容 | WoodQin |
