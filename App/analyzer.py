@@ -46,7 +46,7 @@ class AIAnalyzer:
         """
         此处无法使用with_structured_output，等client支持后再使用
         """
-        structured_result = self.client.with_structured_output(AnalysisResult)
+        structured_result = self.client.llm.with_structured_output(AnalysisResult)
         return structured_result.invoke(messages)
     
     def confirm_result(self, result: AnalysisResult) -> bool:

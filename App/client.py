@@ -9,14 +9,7 @@ from langchain.tools import tool
 
 
 
-import test_tools as TestTools
-
-#这是用于多轮对话的，目前这个功能还没实现
-@dataclass
-class Message:
-    """表示对话中的单条消息"""
-    role: Literal["user", "assistant"]
-    content: str
+import tools as Tools
 
 
 
@@ -74,7 +67,7 @@ class MiniMaxClient:
             api_key=self.config.api_key,
             base_url=self.config.base_url
         )
-        self.langmodel = chat_models.ChatAnthropic(
+        self.llm = chat_models.ChatAnthropic(
                 model=self.config.model,
                 api_key=self.config.api_key,
                 base_url=self.config.base_url,
@@ -87,7 +80,7 @@ class MiniMaxClient:
 
     def chat(
         self,
-        messages: List[Message],
+        messages: List,
         **kwargs
     ) -> Dict[str, Any]:
         """发送聊天消息并获取响应
@@ -104,16 +97,16 @@ class MiniMaxClient:
         """
         try:
             # 绑定工具到语言模型
-            self.langmodel.bind_tools([TestTools.TestTool])
+            self.llm.bind_tools([Tools.TestTool])
 
-            response = self.langmodel.invoke(messages)
+            response = self.llm.invoke(messages)
             for tool_call in response.tool_calls:
                 # 使用生成的参数执行工具
-                tool_result = TestTools.TestTool.invoke(tool_call)
+                tool_result = Tools.TestTool.invoke(tool_call)
                 messages.append(tool_result)
 
             # 将结果传递回模型以获取最终响应
-            final_response = self.langmodel.invoke(messages)
+            final_response = self.llm.invoke(messages)
             
             return final_response.text
 
