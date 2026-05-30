@@ -7,14 +7,9 @@ from langchain_anthropic import chat_models
 from langchain.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain.tools import tool
 
-import test_tools as TestTools
 
-#这是用于多轮对话的，目前这个功能还没实现
-@dataclass
-class Message:
-    """表示对话中的单条消息"""
-    role: Literal["user", "assistant"]
-    content: str
+
+import tools as Tools
 
 
 
@@ -26,6 +21,7 @@ class Config:
     model: str = "MiniMax-M2.7"
     max_tokens: int = 1024
     timeout: Optional[float] = None
+    temperature: float = 0.7
 
     def __post_init__(self):
         if not self.api_key:
@@ -44,6 +40,7 @@ class MiniMaxClient:
         model: 使用的模型（默认: MiniMax-M2.7）
         max_tokens: 响应中的最大token数
         timeout: 请求超时时间（秒）
+        temperature: 生成文本的随机程度（0-1）
 
     使用示例:
         >>> client = MiniMaxClient()
@@ -70,27 +67,26 @@ class MiniMaxClient:
             api_key=self.config.api_key,
             base_url=self.config.base_url
         )
-        self.langmodel = chat_models.ChatAnthropic(
+        self.llm = chat_models.ChatAnthropic(
                 model=self.config.model,
                 api_key=self.config.api_key,
                 base_url=self.config.base_url,
                 max_tokens=self.config.max_tokens,
-                timeout=self.config.timeout
+                timeout=self.config.timeout,
+                temperature=self.config.temperature
         ) 
         
     
 
     def chat(
         self,
-        user: str,
-        system: str = "你是高级硅基生物，使命是辅助我完成任务，你需要回答我问你的问题",
+        messages: List,
         **kwargs
     ) -> Dict[str, Any]:
         """发送聊天消息并获取响应
 
         参数说明:
-            user: 用户消息
-            system: 系统提示词
+            messages: 消息列表
             **kwargs: 额外参数（max_tokens, temperature等）
 
         返回值:
@@ -101,29 +97,21 @@ class MiniMaxClient:
         """
         try:
             # 绑定工具到语言模型
-            self.langmodel.bind_tools([TestTools.TestTool])
-                #消息列表，包含系统提示,用户消息,AI回复和工具信息(AI回复和工具信息一般由AI生成)
-            messages = [
-                SystemMessage(system),
-                HumanMessage(user),
-                AIMessage(""),
-            ]
+            self.llm.bind_tools([Tools.TestTool])
 
-            response = self.langmodel.invoke(messages)
+            response = self.llm.invoke(messages)
             for tool_call in response.tool_calls:
                 # 使用生成的参数执行工具
-                tool_result = TestTools.TestTool.invoke(tool_call)
+                tool_result = Tools.TestTool.invoke(tool_call)
                 messages.append(tool_result)
 
             # 将结果传递回模型以获取最终响应
-            final_response = self.langmodel.invoke(messages)
+            final_response = self.llm.invoke(messages)
             
             return final_response.text
 
         except Exception as e:
             print(f"API请求失败{str(e)}")
-            
-
 
     @property
     def text(self) -> str:
@@ -131,18 +119,9 @@ class MiniMaxClient:
         return ""
 
 
-_client_instance: Optional[MiniMaxClient] = None
-
-
-def get_client() -> MiniMaxClient:
-    """获取或创建单例客户端实例"""
-    global _client_instance
-    if _client_instance is None:
-        _client_instance = MiniMaxClient()
-    return _client_instance
-
 
 if __name__ == "__main__":
-    client = get_client()
-    result = client.chat("你好，近况如何？")
+    client = MiniMaxClient()
+    messages = [HumanMessage(content="你好，近况如何？")]
+    result = client.chat(messages)
     print(result)
