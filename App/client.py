@@ -9,7 +9,7 @@ from langchain.tools import tool
 
 
 
-import tools as Tools
+import App.tools as Tools
 
 
 
@@ -53,7 +53,7 @@ class MiniMaxClient:
         api_key: Optional[str] = None,
         base_url: str = "https://api.minimaxi.com/anthropic",
         model: str = "MiniMax-M2.7",
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         timeout: Optional[float] = None
     ):
         self.config = Config(
