@@ -52,3 +52,4 @@ class AIAnalyzer:
     def confirm_result(self, result: AnalysisResult) -> bool:
         """等待用户确认分析结果"""
         pass
+
