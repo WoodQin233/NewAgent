@@ -15,7 +15,7 @@ file_path="data/test.txt"
 
 #读取文件并初步解析
 parser = ParserFactory().get_parser(file_path)
-document_content = parser.parse(file_path)
+document_content = parser.parse(file_path, Delimiter="\n\n")
 
 client = MiniMaxClient()
 

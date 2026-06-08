@@ -27,7 +27,7 @@ class AIAnalyzer:
     def __init__(self, client: MiniMaxClient):
         self.client = client
 
-    def analyze(self, content: DocumentContent) -> AnalysisResult:
+    def analyze(self, content: List[DocumentContent]) -> AnalysisResult:
         """分析文档内容并返回 PPT 结构"""
         messages = [
             SystemMessage(content="""
@@ -39,13 +39,20 @@ class AIAnalyzer:
             3. 每页内容简洁明了，适合演讲展示
             4. 所有内容必须来源于用户提供的文档，不要自行发挥
             严格按 JSON 格式输出，不要添加任何其他内容。
+            5. 输出结构必须包含 PPT 标题、每页幻灯片的标题和要点列表，以及整体总结和演讲者备注（如果有）。
+            6. AnalysisResult的结构为：
+            {
+                "title": "PPT 标题",
+                "slides": [
+                    {
+                        "title": "幻灯片标题",
+                        "bullet_points": ["要点1", "要点2", ...]
+                    },
+                    ...
+            }
             """),
-            HumanMessage(content = f"请分析以下文档内容并生成 PPT 结构：{content.raw_text}请严格按照 JSON 格式输出。")
+            HumanMessage(content = f"请分析以下文档内容并生成 PPT 结构：{[doc.raw_text for doc in content]}请严格按照 JSON 格式输出。")
         ]
-
-        """
-        此处无法使用with_structured_output，等client支持后再使用
-        """
         structured_result = self.client.llm.with_structured_output(AnalysisResult)
         return structured_result.invoke(messages)
     

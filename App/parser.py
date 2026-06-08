@@ -14,7 +14,7 @@ class UnsupportedFormatError(Exception):
 @dataclass
 class BaseParser:
     """解析器基类"""
-    def parse(self, file_path: str) -> DocumentContent:
+    def parse(self, file_path: str, Delimiter: str) -> List[DocumentContent]:
         """解析文档并返回内容"""
         pass
 
@@ -39,28 +39,13 @@ class ParserFactory:
 
 class TXTParser(BaseParser):
     """文本解析器"""
-    def parse(self, file_path: str) -> DocumentContent:
-        """解析文本文件"""
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return DocumentContent(
-            raw_text=content,
-            tables=[],
-            metadata=DocumentMetadata(
-                file_name=Path(file_path).name,
-                file_path=file_path,
-                file_type="txt",
-                file_size=os.path.getsize(file_path)
-            )
-        )
-
-    def langchainparse(self, file_path: str) -> List[DocumentContent]:
+    def parse(self, file_path: str, Delimiter: str) -> List[DocumentContent]:
         """解析文本文件"""
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
          
         text_splitter = CharacterTextSplitter(
-            separator="\n\n",#文本块之间的分隔符，这里使用默认
+            separator=Delimiter,#文本块之间的分隔符，默认"\n\n"
             chunk_size=50, #每个文本块的最大长度
             chunk_overlap=20, #文本块之间的重叠长度
             length_function=len, #计算文本长度的函数
