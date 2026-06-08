@@ -5,7 +5,9 @@ from App.models import DocumentContent, DocumentMetadata, TableData
 from pathlib import Path
 import os
 from dataclasses import dataclass
+
 from langchain_text_splitters import CharacterTextSplitter
+from langchain_core.document_loaders import PyPDFLoader
 
 class UnsupportedFormatError(Exception):
     """不支持的文件格式异常"""
@@ -39,6 +41,12 @@ class ParserFactory:
 
 class TXTParser(BaseParser):
     """文本解析器"""
+    chunk_size: int = 50
+    chunk_overlap: int = 20
+    def txtlen(self, file_path: str) -> int:
+        """计算chunk_size and chunk_overlap"""
+        pass
+
     def parse(self, file_path: str, Delimiter: str) -> List[DocumentContent]:
         """解析文本文件"""
         with open(file_path, "r", encoding="utf-8") as f:
@@ -46,15 +54,19 @@ class TXTParser(BaseParser):
          
         text_splitter = CharacterTextSplitter(
             separator=Delimiter,#文本块之间的分隔符，默认"\n\n"
-            chunk_size=50, #每个文本块的最大长度
-            chunk_overlap=20, #文本块之间的重叠长度
-            length_function=len, #计算文本长度的函数
+            chunk_size=self.chunk_size, #每个文本块的最大长度
+            chunk_overlap=self.chunk_overlap, #文本块之间的重叠长度
+            length_function=len, #计算文本长度的函数，影响上面的两个参数(未实现)
             is_separator_regex=False #分隔符是否是正则表达式，这里使用默认
-            
         )
 
         chunks = text_splitter.create_documents([content])
         return chunks
 
+class PdfParser(BaseParser):
+    """PDF解析器"""
+    def parse(self, file_path: str, Delimiter: str) -> List[DocumentContent]:
+        """解析PDF文件"""
+        pass
 
 
