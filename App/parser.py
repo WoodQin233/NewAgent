@@ -1,13 +1,17 @@
 from ctypes.util import test
 from tkinter.ttk import Separator
 from typing import List, Optional
-from App.models import DocumentContent, DocumentMetadata, TableData
+
+from models import DocumentContent, DocumentMetadata, TableData
 from pathlib import Path
 import os
 from dataclasses import dataclass
 
-from langchain_text_splitters import CharacterTextSplitter
-from langchain_core.document_loaders import PyPDFLoader
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from langchain_community.document_loaders import UnstructuredImageLoader, UnstructuredWordDocumentLoader, UnstructuredPDFLoader, UnstructuredPowerPointLoader
+
 
 class UnsupportedFormatError(Exception):
     """不支持的文件格式异常"""
@@ -16,7 +20,11 @@ class UnsupportedFormatError(Exception):
 @dataclass
 class BaseParser:
     """解析器基类"""
-    def parse(self, file_path: str, Delimiter: str) -> List[DocumentContent]:
+    
+    chunk_size: int = 100
+    chunk_overlap: int = 4
+
+    def parse(self, file_path: str, Delimiter: str) -> DocumentContent:
         """解析文档并返回内容"""
         pass
 
@@ -39,34 +47,132 @@ class ParserFactory:
         else:
             raise UnsupportedFormatError(f"不支持的文件格式: {extension}")
 
+
 class TXTParser(BaseParser):
     """文本解析器"""
-    chunk_size: int = 50
-    chunk_overlap: int = 20
+
     def txtlen(self, file_path: str) -> int:
         """计算chunk_size and chunk_overlap"""
         pass
 
-    def parse(self, file_path: str, Delimiter: str) -> List[DocumentContent]:
+    def parse(self, file_path: str) -> DocumentContent:
         """解析文本文件"""
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
-         
-        text_splitter = CharacterTextSplitter(
-            separator=Delimiter,#文本块之间的分隔符，默认"\n\n"
-            chunk_size=self.chunk_size, #每个文本块的最大长度
-            chunk_overlap=self.chunk_overlap, #文本块之间的重叠长度
-            length_function=len, #计算文本长度的函数，影响上面的两个参数(未实现)
-            is_separator_regex=False #分隔符是否是正则表达式，这里使用默认
+        
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size = self.chunk_size, #每个文本块的最大长度
+            chunk_overlap = self.chunk_overlap, #文本块之间的重叠长度
+            length_function = len, #计算文本长度的函数，影响上面的两个参数(未实现)
+            is_separator_regex = False #分隔符是否是正则表达式，这里使用默认
         )
 
         chunks = text_splitter.create_documents([content])
-        return chunks
+
+        #转为DocumentContent
+        testTable = TableData(
+            headers = ["分割数据"],
+            rows = []
+        )
+        for chunk in chunks:
+            testTable.rows.append([chunk.page_content])
+
+        TXTDocumentContent = DocumentContent(
+            raw_text=content,
+            tables = [testTable],
+            metadata = DocumentMetadata(
+                file_name = Path(file_path).name,
+                file_path = file_path,
+                file_type = ".txt",
+                file_size=os.path.getsize(file_path)
+            )
+        )
+        return TXTDocumentContent
+
+        pass
+      
 
 class PdfParser(BaseParser):
-    """PDF解析器"""
-    def parse(self, file_path: str, Delimiter: str) -> List[DocumentContent]:
+    """PDF解析器，不支持图片"""
+
+    def parse(self, file_path: str) -> DocumentContent:
         """解析PDF文件"""
+        loader = UnstructuredPDFLoader(file_path)
+        chunks = loader.load_and_split(text_splitter=RecursiveCharacterTextSplitter(
+            chunk_size = self.chunk_size,
+            chunk_overlap = self.chunk_overlap,
+            )
+        )
+
+        #转为DocumentContent
+        PdfTxtTable = TableData(
+            headers = ["分割数据"],
+            rows = []
+        )
+
+        pdftext = ""
+
+        for chunk in chunks:
+            PdfTxtTable.rows.append([chunk.page_content])
+            pdftext = pdftext + chunk.page_content
+
+        PdfDocumentContent = DocumentContent(
+            raw_text = pdftext,
+            tables = [PdfTxtTable],
+            metadata = DocumentMetadata(
+                file_name = Path(file_path).name,
+                file_path = file_path,
+                file_type = ".pdf",
+                file_size = os.path.getsize(file_path)
+            )
+        )
+        return PdfDocumentContent
+
         pass
 
 
+class WordParser(BaseParser):
+    """Word解析器，不支持图片"""
+
+    def parse(self, file_path: str) -> DocumentContent:
+        """解析Word文件"""
+
+        loader = UnstructuredWordDocumentLoader(file_path)
+        chunks = loader.load()
+
+        #转为DocumentContent
+        WordTxtTable = TableData(
+            headers = ["分割数据"],
+            rows = []
+        )
+
+        pdftext = ""
+
+        WordImageTable = TableData(
+            headers = ["图片数据"],
+            rows = []
+        )
+
+        for chunk in chunks:
+            WordTxtTable.rows.append([chunk.page_content])
+            pdftext = pdftext + chunk.page_content
+            #WordImageTable.rows.append([chunk.metadata.get("source", "")])
+
+        WordDocumentContent = DocumentContent(
+            raw_text = pdftext,
+            tables = [WordTxtTable],
+            metadata = DocumentMetadata(
+                file_name = Path(file_path).name,
+                file_path = file_path,
+                file_type = ".docx",
+                file_size = os.path.getsize(file_path)
+            )
+        )
+        return WordDocumentContent
+
+        pass
+
+if __name__ == "__main__":
+    """test"""
+    file_path = "data/test.pdf"
+    print(ParserFactory().get_parser(file_path).parse(file_path))
