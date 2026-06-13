@@ -49,7 +49,6 @@ for slide in ppt_structure.slides:
 # ppt_structure.slides = [SlideContent(title="测试幻灯片1", bullet_points=["测试内容1"])]
 
 # 生成PPT文件，并获取保存路径
-
 path = PPTGenerator().generate(ppt_structure)
 
 print("ppt已生成：",path)
