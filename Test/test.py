@@ -15,7 +15,7 @@ file_path="data/test.txt"
 
 #读取文件并初步解析
 parser = ParserFactory().get_parser(file_path)
-document_content = parser.parse(file_path, Delimiter="\n\n")
+document_content = parser.parse(file_path)
 
 client = MiniMaxClient()
 
@@ -54,7 +54,3 @@ path = PPTGenerator().generate(ppt_structure)
 print("ppt已生成：",path)
 
 # print("演讲人署名：",ppt_structure.notes)
-
-
-
-
