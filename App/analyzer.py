@@ -1,24 +1,12 @@
 import dataclasses
 
 from langchain.tools import tool
-from App.models import AnalysisResult, DocumentContent, SlideContent
+from App.models import AnalysisResult, DocumentContent, SlideContent, SlideType
 from App.client import MiniMaxClient
 from pydantic import BaseModel, Field
 from langchain.messages import SystemMessage, HumanMessage
 from typing import List, Optional
 
-"""
-json格式化分析结果
-"""
-class SlideContent(BaseModel):
-    title: str = Field(description="本页幻灯片标题")
-    bullet_points: List[str] = Field(description="具体文本内容列表")
-
-class AnalysisResult(BaseModel):
-    title: str = Field(description="PPT 标题")
-    slides: List[SlideContent] = Field(description="幻灯片内容列表")
-    summary: str = Field(description="总结")
-    notes: Optional[str] = Field(description="演讲者署名", default=None)
 
 class AIAnalyzer:
     """AI 分析器"""
