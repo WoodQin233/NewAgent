@@ -25,10 +25,12 @@ ppt_structure = AIAnalyzer(client).analyze(document_content)
 # 展示分析结果在控制台
 print("内容总结：",ppt_structure.summary)
 print("类型:",type(ppt_structure),type(ppt_structure.slides))
-print("幻灯片总页数:",len(ppt_structure.slides)+1)
+print("幻灯片总页数:",len(ppt_structure.slides))
 for slide in ppt_structure.slides:
     print("幻灯片标题:",slide.title)
     print("幻灯片内容:",slide.bullet_points)
+    print("幻灯片类型:",slide.type)
+    print("-----------------")
 
 #这里是我测试用的代码，不用管
 # class SlideContent():
