@@ -9,6 +9,17 @@ from pydantic import BaseModel, Field
 """
 文档解析器模型
 """
+class FileType(str,Enum):
+    """文件类型"""
+    OTHER = "other"
+    PDF = "pdf"
+    DOCX = "docx"
+    DOC = "doc"
+    TXT = "txt"
+    PPTX = "pptx"
+    PPT = "ppt"
+
+
 @dataclass
 class TableData:
     """表格数据"""
@@ -23,12 +34,25 @@ class DocumentMetadata:
     file_type: str                          # 文件类型
     file_size: int                          # 文件大小（字节）
 
+    def __str__(self):
+        result = f"文件名: {self.file_name}\n"
+        result += f"文件路径: {self.file_path}\n"
+        result += f"文件类型: {self.file_type}\n"
+        result += f"文件大小: {self.file_size} 字节\n"
+        return result
+
 @dataclass
 class DocumentContent:
     """解析后的文档内容"""
     raw_text: str                          # 原始文本
     tables: List[TableData]                # 表格列表
     metadata: DocumentMetadata              # 元数据
+
+    def __str__(self):
+        result = f"原始文本: {self.raw_text}\n"
+        result += f"表格数量: {len(self.tables)}\n"
+        result += f"元数据:[\n {self.metadata}]\n"
+        return result
 
 """
 AI分析模型
@@ -55,6 +79,4 @@ class AnalysisResult(BaseModel):
     slides: List[SlideContent] = Field(description="幻灯片内容列表")
     summary: str = Field(description="总结")
     notes: Optional[str] = Field(default=None, description="演讲者备注")
-
-
 
