@@ -19,7 +19,7 @@
     }
   },
   "logging": {
-    "level": "DEBUG",
+    "level": "INFO",
     "file": "logs/app.log",
     "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
   },

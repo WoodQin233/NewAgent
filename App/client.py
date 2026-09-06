@@ -14,8 +14,8 @@ class Config:
     """MiniMax API客户端配置"""
     api_key: Optional[str] = None
     base_url: str = "https://api.minimaxi.com/anthropic"
-    model: str = "MiniMax-M2.7"
-    max_tokens: int = 1024
+    model: str = "MiniMax-M3"
+    max_tokens: int = 16384
     timeout: Optional[float] = None
     temperature: float = 0.7
 
@@ -33,7 +33,7 @@ class MiniMaxClient:
     参数说明:
         api_key: MiniMax API密钥，若未传入则从 MINIMAX_API_KEY 环境变量读取
         base_url: API端点URL
-        model: 使用的模型（默认: MiniMax-M2.7）
+        model: 使用的模型（默认: MiniMax-M3）
         max_tokens: 响应中的最大token数
         timeout: 请求超时时间（秒）
         temperature: 生成文本的随机程度（0-1）
@@ -48,8 +48,8 @@ class MiniMaxClient:
         self,
         api_key: Optional[str] = None,
         base_url: str = "https://api.minimaxi.com/anthropic",
-        model: str = "MiniMax-M2.7",
-        max_tokens: int = 4096,
+        model: str = "MiniMax-M3",
+        max_tokens: int = 16384, 
         timeout: Optional[float] = None
     ):
         self.config = Config(
