@@ -52,6 +52,9 @@ logs/
 output/
 output_history/
 
+# UV
+uv.lock
+
 # Temporary files
 *.tmp
 *.bak

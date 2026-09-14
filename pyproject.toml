@@ -5,14 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "instructor>=1.17.0",
     "langchain>=1.0.0",
     "langchain-anthropic>=1.0.0",
     "langchain-community>=0.4.1",
-    "python-dotenv>=1.2.2",
-    "python-pptx>=1.0.2",
 ]
-
-[[tool.uv.index]]
-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
-default = true

@@ -80,3 +80,10 @@ class Parser:
         else:
             raise UnsupportedFormatError(f"不支持的文件格式: {file_type.value}")
 
+
+
+
+
+
+
+

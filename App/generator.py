@@ -11,6 +11,7 @@ PPT 生成器
 from __future__ import annotations
 
 import os
+import re
 from typing import Dict, List, Optional, Tuple
 
 from pptx import Presentation
@@ -40,6 +41,25 @@ def _hex_to_rgb(hex_color: str) -> RGBColor:
     return RGBColor(int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
 
 
+def _lighten(hex_color: str, t: float = 0.88) -> str:
+    """把 #RRGGBB 向白色混合 t 比例，返回浅色版（用于卡片底色）"""
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+    mix = lambda c: int(c + (255 - c) * t)
+    return f"#{mix(r):02X}{mix(g):02X}{mix(b):02X}"
+
+
+_CN_DIGITS = "零一二三四五六七八九"
+
+
+def _cn_section_num(n: int) -> str:
+    """章节序号转中文数字：1→'一'…10→'十'…11→'十一'；超过 19 回退阿拉伯数字"""
+    if 1 <= n <= 10:
+        return "十" if n == 10 else _CN_DIGITS[n]
+    if 11 <= n <= 19:
+        return "十" + _CN_DIGITS[n - 10]
+    return str(n)
+
+
 def _box(box: Box, cw: float, ch: float) -> Tuple[float, float, float, float]:
     """把相对 Box 换算成英寸 (left, top, width, height)"""
     return box.x * cw, box.y * ch, box.w * cw, box.h * ch
@@ -53,7 +73,7 @@ class FontScale:
     _BASE = {
         "title_main":   44,
         "title_sub":    20,
-        "section_no":   96,
+        "section_kicker": 16,
         "section_name": 32,
         "para":         22,
         "bullet":       24,
@@ -85,6 +105,7 @@ class PageRenderer:
 
     def __init__(self, theme: ThemeConfig):
         self.theme = theme
+        self._section_seq = 0  # 已渲染的 SECTION 页计数,用于自动生成章节序号
 
     def render(
         self,
@@ -154,26 +175,46 @@ class PageRenderer:
         return PageLayout(background=self.theme.background_color, shapes=shapes)
 
     def _render_section(self, s: SlideContent) -> PageLayout:
+        self._section_seq += 1
         shapes: List[ShapeBox] = []
+
+        title = (s.title or "").strip()
+        subtitle = s.subtitle
+        # LLM 可能把"第X部分/章"序号写进 title;序号一律由渲染器按章节顺序派生,剥离前缀防止重复
+        m = re.match(r"^第[一二三四五六七八九十百\d]+\s*(?:部分|章|讲|节)\s*[：:、.．\-—]*\s*(.*)$", title)
+        if m:
+            stripped = (m.group(1) or "").strip()
+            if stripped:
+                title = stripped
+            elif subtitle:
+                # title 只剩序号(如"第三部分"),章节名落在 subtitle,对调
+                title, subtitle = subtitle, None
+            # 剥完为空且无 subtitle:保留原 title 兜底,避免空标题页
+
         shapes.append(ShapeBox(
-            kind="textbox",
-            box=Box(x=0.05, y=0.20, w=0.30, h=0.60),
-            z=2, content=f"{s.page:02d}",
-            font_size=FontScale.get("section_no", s.mood),
-            bold=True, color=self.theme.accent_color,
+            kind="rect",
+            box=Box(x=0.08, y=0.31, w=0.01, h=0.29),
+            z=0, fill=self.theme.accent_color,
         ))
         shapes.append(ShapeBox(
             kind="textbox",
-            box=Box(x=0.40, y=0.35, w=0.55, h=0.30),
-            z=2, content=s.title,
+            box=Box(x=0.11, y=0.30, w=0.80, h=0.08),
+            z=2, content=f"第{_cn_section_num(self._section_seq)}部分",
+            font_size=FontScale.get("section_kicker", s.mood),
+            color=self.theme.accent_color,
+        ))
+        shapes.append(ShapeBox(
+            kind="textbox",
+            box=Box(x=0.11, y=0.38, w=0.80, h=0.22),
+            z=2, content=title,
             font_size=FontScale.get("section_name", s.mood),
             bold=True, color=self.theme.primary_color,
         ))
-        if s.subtitle:
+        if subtitle:
             shapes.append(ShapeBox(
                 kind="textbox",
-                box=Box(x=0.40, y=0.62, w=0.55, h=0.10),
-                z=2, content=s.subtitle,
+                box=Box(x=0.11, y=0.62, w=0.80, h=0.08),
+                z=2, content=subtitle,
                 font_size=FontScale.get("title_sub", s.mood),
                 color=self.theme.secondary_color,
             ))
@@ -247,21 +288,44 @@ class PageRenderer:
             font_size=FontScale.get("bullet", s.mood),
             bold=True, color=self.theme.primary_color,
         ))
+        if s.subtitle:
+            shapes.append(ShapeBox(
+                kind="textbox",
+                box=Box(x=0.06, y=0.20, w=0.88, h=0.06),
+                z=2, content=s.subtitle,
+                font_size=FontScale.get("title_sub", s.mood),
+                color=self.theme.secondary_color,
+            ))
         bullets = s.point_list()
         mid = (len(bullets) + 1) // 2
         left_text = "\n".join(f"• {b}" for b in bullets[:mid])
         right_text = "\n".join(f"• {b}" for b in bullets[mid:])
+
+        # 左右卡片底色（z=0 置于文字之下）
         shapes.append(ShapeBox(
-            kind="textbox",
-            box=Box(x=0.05, y=0.26, w=0.43, h=0.66),
-            z=2, content=left_text,
+            kind="rect", box=Box(x=0.04, y=0.26, w=0.44, h=0.68), z=0,
+            fill=_lighten(self.theme.primary_color),
+        ))
+        shapes.append(ShapeBox(
+            kind="rect", box=Box(x=0.52, y=0.26, w=0.44, h=0.68), z=0,
+            fill=_lighten(self.theme.accent_color),
+        ))
+        # 中缝竖分隔线
+        shapes.append(ShapeBox(
+            kind="line", box=Box(x=0.50, y=0.30, w=0.0, h=0.60), z=1,
+            color=self.theme.secondary_color,
+        ))
+        # 左栏文字（z=2 置于卡片之上）
+        shapes.append(ShapeBox(
+            kind="textbox", box=Box(x=0.07, y=0.30, w=0.38, h=0.60), z=2,
+            content=left_text,
             font_size=FontScale.get("two_col", s.mood),
             color=self.theme.primary_color,
         ))
+        # 右栏文字
         shapes.append(ShapeBox(
-            kind="textbox",
-            box=Box(x=0.52, y=0.26, w=0.43, h=0.66),
-            z=2, content=right_text,
+            kind="textbox", box=Box(x=0.55, y=0.30, w=0.38, h=0.60), z=2,
+            content=right_text,
             font_size=FontScale.get("two_col", s.mood),
             color=self.theme.primary_color,
         ))
@@ -404,6 +468,7 @@ class LayoutApplier:
                 rect.fill.fore_color.rgb = _hex_to_rgb(sb.fill)
             else:
                 rect.fill.background()
+            rect.line.fill.background()
         elif sb.kind == "line":
             slide.shapes.add_connector(
                 1,
@@ -433,7 +498,8 @@ class LayoutApplier:
 class PPTGenerator:
     """根据 LayoutInfo 渲染 PPT"""
 
-    # 不依赖外部模板，直接从零创建空白演示文稿
+    # 使用空白模板作为底板，避免依赖模板中的占位符。
+    DEFAULT_TEMPLATE = "Templates/blank.pptx"
 
     @staticmethod
     def generate(layout: LayoutInfo) -> str:
@@ -441,13 +507,13 @@ class PPTGenerator:
         主入口：渲染整个演示文稿并保存为 .pptx 文件，返回输出路径。
 
         流程：
-        1. 创建空白演示文稿；
+        1. 加载空白模板；
         2. 根据 layout.canvas 设置幻灯片尺寸；
         3. 遍历 layout.outline.items，逐页渲染；
         4. 保存到 output/<title>.pptx。
         """
-        # ── 1. 创建空白演示文稿 ───────────────────────────────────────
-        prs = Presentation()
+        # ── 1. 加载模板 ───────────────────────────────────────────────
+        prs = Presentation(PPTGenerator.DEFAULT_TEMPLATE)
 
         # ── 2. 设置画布尺寸（按 layout.canvas 的英寸数） ──────────────
         prs.slide_width = Inches(layout.canvas.width)

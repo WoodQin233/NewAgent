@@ -7,9 +7,7 @@ from langchain_anthropic import chat_models
 from langchain.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain.tools import tool
 
-from dotenv import load_dotenv
-
-load_dotenv()
+import App.tools as Tools
 
 @dataclass
 class Config:
