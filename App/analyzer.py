@@ -50,12 +50,12 @@ class AIAnalyzer:
         校验失败会自动重试，并把错误信息反馈给模型。
         """
         try:
-            result = _instructor_client.messages.create(
+            return _instructor_client.messages.create(
                 model=MiniMaxClient().config.model,
                 max_tokens=MiniMaxClient().config.max_tokens,
                 temperature=0,
                 response_model=AnalysisResult,
-                max_retries=2,
+                max_retries=0,
                 messages=[
                     {
                         "role": "user",
@@ -67,15 +67,12 @@ class AIAnalyzer:
                             "1. 提取文档的核心主题和关键信息\n"
                             "2. 合理分页,确保每页内容聚焦\n"
                             "3. 每页内容简洁明了,适合演讲展示\n"
-                            "4. 所有内容必须来源于用户提供的文档,不要自行发挥\n"
-                            "5. 每个 slide 的 title 必须是该页内容的语义化概括，禁止页码式标题（如 \"第N页\"、\"第N部分\"、\"01\"）\n\n"
+                            "4. 所有内容必须来源于用户提供的文档,不要自行发挥\n\n"
                             f"文档内容:\n{content.raw_text}"
                         ),
                     }
                 ],
             )
-            logger.info("AI 大纲生成成功:\n%s", result.model_dump_json(indent=2))
-            return result
         except (ValidationError, Exception) as e:
             last = getattr(e, "last_completion", None) or getattr(e, "last_attempt", None)
             # DEBUG:把模型的最后一次返回完整 dump 出来,方便看 stop_reason / content / tool_calls
@@ -95,12 +92,12 @@ class AIAnalyzer:
         使用 instructor + Anthropic 协议，确保嵌套 Pydantic 校验通过。
         """
         try:
-            result = _instructor_client.messages.create(
+            return _instructor_client.messages.create(
                 model=MiniMaxClient().config.model,
                 max_tokens=MiniMaxClient().config.max_tokens,
                 temperature=0,
                 response_model=LayoutInfo,
-                max_retries=2,
+                max_retries=0,
                 messages=[
                     {
                         "role": "user",
@@ -115,14 +112,6 @@ class AIAnalyzer:
                             "- theme: 全局主题色\n"
                             "- canvas: 画布尺寸(默认 13.33x7.5 英寸)\n"
                             "页面类型 PageType 取值: TITLE / SECTION / PARAGRAPH / BULLETS / TWO_COL / IMAGE / QUOTE / SUMMARY\n"
-                            "title 硬性规则:必须是该页内容的语义化概括,禁止 '第N页/第N章/N./01/Part N' 等页码式标题\n"
-                            "反例: {\"page\":3,\"type\":\"SECTION\",\"title\":\"03\"}\n"
-                            "正例: {\"page\":3,\"type\":\"SECTION\",\"title\":\"市场竞争格局\"}\n"
-                            "SECTION 页字段约定:title 只写章节名本身,禁止携带'第X部分/第X章'序号前缀,\n"
-                            "序号由渲染器按章节出现顺序自动生成;subtitle 可选,用一句话概括本章看点\n"
-                            "outline.items 的 points 必须逐字沿用输入大纲对应页的内容,不得改写、增删或丢字;\n"
-                            "title 优先沿用输入大纲,但若输入大纲的 title 是页码式标题(如 '3'、'第3页'),\n"
-                            "必须根据该页内容改写为语义化标题\n"
                             "要求:\n"
                             "1. outline 逐页对应输入大纲,首页 TITLE,末页 SUMMARY 或 TITLE\n"
                             "2. 不要凭空新增文字、图片或要点\n"
@@ -134,8 +123,6 @@ class AIAnalyzer:
                     }
                 ],
             )
-            logger.info("AI 布局生成成功:\n%s", result.model_dump_json(indent=2))
-            return result
         except (ValidationError, Exception) as e:
             last = getattr(e, "last_completion", None) or getattr(e, "last_attempt", None)
             # DEBUG:把模型的最后一次返回完整 dump 出来,方便看 stop_reason / content / tool_calls
