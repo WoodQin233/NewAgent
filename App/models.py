@@ -1,4 +1,4 @@
-import dataclasses
+import re
 from typing import List, Optional, Annotated, Literal
 from dataclasses import dataclass
 from enum import Enum
@@ -93,6 +93,11 @@ class OutlineSlide(BaseModel):
             raise ValueError("PARAGRAPH 至少需要 1 个 bullet_points")
         return v
 
+    @field_validator("title")
+    @classmethod
+    def _v_title(cls, v: str, info) -> str:
+        return _validate_semantic_title(v, info)
+
 
 class AnalysisResult(BaseModel):
     """AI 分析结果"""
@@ -114,6 +119,23 @@ def _validate_hex(v: str) -> str:
     return v.upper()
 
 HexColor = Annotated[str, AfterValidator(_validate_hex)]
+
+
+# ─────────────────────────── 标题语义化校验 ───────────────────────────
+
+_PAGE_TITLE_RE = re.compile(
+    r"^(第\s*\d+\s*[页章部分节]?|\d{1,3}\s*[.、．]?\s*页?|part\s*\d+|chapter\s*\d+|section\s*\d+|章节\s*\d+)$",
+    re.IGNORECASE,
+)
+
+def _validate_semantic_title(v: str, info) -> str:
+    t = (v or "").strip()
+    page = info.data.get("page")
+    if _PAGE_TITLE_RE.fullmatch(t) or (page is not None and t in (str(page), f"{page:02d}", f"{page}")):
+        raise ValueError(
+            f"title '{v}' 是页码式标题，必须是对该页内容的语义化概括（如 '市场竞争格局'）"
+        )
+    return t
 
 
 # ─────────────────────────── 枚举 ───────────────────────────
@@ -146,9 +168,12 @@ class OutlineItem(BaseModel):
     @field_validator("page", mode="before")
     @classmethod
     def _coerce_page(cls, v):
-        # 兜底:模型可能把页码输出成字符串 "1",统一转成 int
+        # 兜底:模型可能把页码输出成字符串,转成 int
         if isinstance(v, str):
-            return int(v)
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError(f"页码 {v} 无效")
         return v
 
     @field_validator("type", mode="before")
@@ -170,6 +195,11 @@ class OutlineItem(BaseModel):
         if isinstance(v, str):
             return Mood(v)
         return v
+
+    @field_validator("title")
+    @classmethod
+    def _v_title(cls, v: str, info) -> str:
+        return _validate_semantic_title(v, info)
 
     def point_list(self) -> List[str]:
         """把 points 字符串拆回 list,渲染器内部使用"""
@@ -210,9 +240,12 @@ class SlideContent(BaseModel):
     @field_validator("page", mode="before")
     @classmethod
     def _coerce_page(cls, v):
-        # 兜底:模型可能把页码输出成字符串 "1",统一转成 int
+        # 兜底:模型可能把页码输出成字符串,转成 int
         if isinstance(v, str):
-            return int(v)
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError(f"页码 {v} 无效")
         return v
 
     @field_validator("type", mode="before")
@@ -233,6 +266,11 @@ class SlideContent(BaseModel):
             except ValueError:
                 raise ValueError(f"情绪关键字 {v} 无效")
         return v
+
+    @field_validator("title")
+    @classmethod
+    def _v_title(cls, v: str, info) -> str:
+        return _validate_semantic_title(v, info)
 
     def point_list(self) -> List[str]:
         # 兜底:模型可能把换行输出成字面的 \n(反斜杠+n),先转成真正换行再拆

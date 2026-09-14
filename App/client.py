@@ -1,15 +1,10 @@
 import os
 from dataclasses import dataclass
-from typing import Optional, Literal, Dict, Any, List
+from typing import Optional, Dict, Any, List
 import anthropic
 
 from langchain_anthropic import chat_models
-from langchain.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
-from langchain.tools import tool
-
-from dotenv import load_dotenv
-
-load_dotenv()
+from langchain.messages import HumanMessage
 
 @dataclass
 class Config:
