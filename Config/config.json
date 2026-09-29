@@ -8,14 +8,32 @@
     "max_history_count": 100
   },
   "api": {
-    "provider": "minimax",
-    "base_url": "https://api.minimaxi.com/anthropic",
-    "model": "MiniMax-M2.7",
-    "max_tokens": 4096,
+    "active": "deepseek",
+    "max_tokens": 8192,
     "timeout": 60,
+    "temperature": 0.7,
     "retry": {
       "max_attempts": 3,
       "backoff_factor": 2
+    }
+  },
+  "providers": {
+    "minimax": {
+      "base_url": "https://api.minimaxi.com/anthropic",
+      "model": "MiniMax-M2.7",
+      "api_key_env": "MINIMAX_API_KEY",
+      "structured": { "tool_choice": { "type": "auto" } }
+    },
+    "deepseek": {
+      "base_url": "https://api.deepseek.com/anthropic",
+      "model": "deepseek-flash",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "structured": { "tool_choice": { "type": "auto" } }
+    },
+    "glm": {
+      "base_url": "https://open.bigmodel.cn/api/paas/v4/",
+      "model": "glm-5.3-flash",
+      "api_key_env": "GLM_API_KEY"
     }
   },
   "logging": {

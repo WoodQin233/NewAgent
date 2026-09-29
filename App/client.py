@@ -1,120 +1,131 @@
-import os
-from dataclasses import dataclass
-from typing import Optional, Dict, Any, List
-import anthropic
+"""LLM 客户端门面
 
-from langchain_anthropic import chat_models
-from langchain.messages import HumanMessage
+对外只暴露两条路径，厂商与协议由 Config/config.json 决定：
+    llm     —— LangChain 模型，用于自由文本 / tool calling / agent
+    extract —— instructor 客户端，用于强类型结构化输出
 
-@dataclass
-class Config:
-    """MiniMax API客户端配置"""
-    api_key: Optional[str] = None
-    base_url: str = "https://api.minimaxi.com/anthropic"
-    model: str = "MiniMax-M3"
-    max_tokens: int = 16384
-    timeout: Optional[float] = None
-    temperature: float = 0.7
+上层代码不感知厂商：切换厂商只改配置，这里和调用方都不用动。
+"""
+from functools import lru_cache
+from typing import Any, Optional, Protocol, TypeVar
 
-    def __post_init__(self):
-        if not self.api_key:
-            self.api_key = os.getenv("MINIMAX_API_KEY")
-        if not self.api_key:
-            self.api_key = "114514"
+from langchain_core.language_models import BaseChatModel
+from pydantic import BaseModel
 
-            
+from App.providers import get_adapter
+from Utils.settings import ApiSettings, ProviderSpec, get_settings
 
-class MiniMaxClient:
-    """MiniMax API交互客户端
+T = TypeVar("T", bound=BaseModel)
 
-    参数说明:
-        api_key: MiniMax API密钥，若未传入则从 MINIMAX_API_KEY 环境变量读取
-        base_url: API端点URL
-        model: 使用的模型（默认: MiniMax-M3）
-        max_tokens: 响应中的最大token数
-        timeout: 请求超时时间（秒）
-        temperature: 生成文本的随机程度（0-1）
+
+class StructuredOutputError(RuntimeError):
+    """结构化输出失败：模型未给出可通过校验的结果，或重试次数耗尽。"""
+
+    def __init__(self, response_model: type[BaseModel], cause: Exception):
+        self.response_model = response_model
+        self.cause = cause
+        # instructor 会把模型的最后一次返回挂在异常上，留作排查用
+        self.last_completion = (
+            getattr(cause, "last_completion", None)
+            or getattr(cause, "last_attempt", None)
+        )
+        super().__init__(
+            f"{response_model.__name__} 解析失败: {type(cause).__name__}: {cause}"
+        )
+
+
+class StructuredLLM(Protocol):
+    """结构化输出契约：给一个 Pydantic 类型和提示词，返回该类型的实例。"""
+
+    def extract(
+        self,
+        response_model: type[T],
+        prompt: str,
+        *,
+        system: Optional[str] = None,
+        **overrides: Any,
+    ) -> T: ...
+
+
+class LLMClient:
+    """LLM 客户端门面
+
+    厂商、模型、base_url 全部来自 Config/config.json 的 api.active 与
+    providers 预设表，这里不再持有任何硬编码的端点信息。
 
     使用示例:
-        >>> client = MiniMaxClient()
-        >>> response = client.chat("你好！")
-        >>> print(response)
+        >>> client = get_llm()
+        >>> client.extract(AnalysisResult, "把下面的文档整理成 PPT 大纲：...")
     """
 
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        base_url: str = "https://api.minimaxi.com/anthropic",
-        model: str = "MiniMax-M3",
-        max_tokens: int = 16384, 
-        timeout: Optional[float] = None
-    ):
-        self.config = Config(
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
-            max_tokens=max_tokens,
-            timeout=timeout
-        )
-        self._client = anthropic.Anthropic(
-            api_key=self.config.api_key,
-            base_url=self.config.base_url
-        )
-        self.llm = chat_models.ChatAnthropic(
-                model=self.config.model,
-                api_key=self.config.api_key,
-                base_url=self.config.base_url,
-                max_tokens=self.config.max_tokens,
-                timeout=self.config.timeout,
-                temperature=self.config.temperature
-        ) 
-        
-    
-
-    def chat(
-        self,
-        messages: List,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """发送聊天消息并获取响应
-
-        参数说明:
-            messages: 消息列表
-            **kwargs: 额外参数（max_tokens, temperature等）
-
-        返回值:
-            包含响应内容和元数据的字典
-
-        抛出异常:
-            APIResponseError: API返回错误时
-        """
-        try:
-            # 绑定工具到语言模型
-            self.llm.bind_tools([Tools.TestTool])
-
-            response = self.llm.invoke(messages)
-            for tool_call in response.tool_calls:
-                # 使用生成的参数执行工具
-                tool_result = Tools.TestTool.invoke(tool_call)
-                messages.append(tool_result)
-
-            # 将结果传递回模型以获取最终响应
-            final_response = self.llm.invoke(messages)
-            
-            return final_response.text
-
-        except Exception as e:
-            print(f"API请求失败{str(e)}")
+    def __init__(self) -> None:
+        # 懒加载：不调用就不建连接，避免 import 期副作用
+        self._llm: Optional[BaseChatModel] = None
+        self._structured: Optional[Any] = None
 
     @property
-    def text(self) -> str:
-        """用于访问上次响应文本的属性（需要时使用）"""
-        return ""
+    def spec(self) -> ProviderSpec:
+        """当前生效的厂商预设（base_url / model / api_key_env）。"""
+        return get_settings().api.provider
+
+    @property
+    def api(self) -> ApiSettings:
+        """与厂商无关的通用参数（max_tokens / timeout / temperature）。"""
+        return get_settings().api
+
+    @property
+    def llm(self) -> BaseChatModel:
+        """LangChain 侧的模型，用于自由文本 / tool calling 场景。"""
+        if self._llm is None:
+            self._llm = get_adapter(self.spec.protocol).build_llm(self.spec, self.api)
+        return self._llm
+
+    @property
+    def _instructor(self) -> Any:
+        """instructor 包装后的 SDK 客户端，用于结构化输出。"""
+        if self._structured is None:
+            self._structured = get_adapter(self.spec.protocol).build_structured(
+                self.spec, self.api
+            )
+        return self._structured
+
+    def extract(
+        self,
+        response_model: type[T],
+        prompt: str,
+        *,
+        system: Optional[str] = None,
+        temperature: float = 0.0,
+        max_retries: int = 2,
+        **overrides: Any,
+    ) -> T:
+        """按 response_model 约束模型输出，返回已校验的 Pydantic 对象
+
+        model / max_tokens 等默认值取自配置，调用方通常只需要提供
+        response_model 和 prompt。校验失败时 instructor 会带着错误信息重试，
+        次数由 max_retries 控制；重试耗尽后统一抛出 StructuredOutputError。
+        """
+        kwargs: dict[str, Any] = {}
+        if system:
+            kwargs["system"] = system
+        try:
+            return self._instructor.messages.create(
+                model=self.spec.model,
+                max_tokens=self.api.max_tokens,
+                temperature=temperature,
+                max_retries=max_retries,
+                response_model=response_model,
+                messages=[{"role": "user", "content": prompt}],
+                # 厂商预设里的参数（如 tool_choice=auto），调用方 overrides 可覆盖
+                **self.spec.structured_kwargs,
+                **kwargs,
+                **overrides,
+            )
+        except Exception as cause:
+            raise StructuredOutputError(response_model, cause) from cause
 
 
-
-if __name__ == "__main__":
-    client = MiniMaxClient()
-    messages = [HumanMessage(content="你好，近况如何？")]
-    result = client.chat(messages)
-    print(result)
+@lru_cache(maxsize=1)
+def get_llm() -> LLMClient:
+    """全进程复用一个客户端实例，避免重复创建底层连接池。"""
+    return LLMClient()

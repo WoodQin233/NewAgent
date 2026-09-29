@@ -13,6 +13,7 @@ from App.models import FileType
 from App.parser import Parser
 from App.analyzer import AIAnalyzer
 from App.generator import PPTGenerator
+from Utils.settings import get_settings
 
 
 EXT_TO_TYPE = {
@@ -37,15 +38,21 @@ def ask_file_path() -> str:
 
 
 def ensure_api_key() -> None:
-    """环境变量里没有 key 时，提示用户输入（输入内容不显示）。"""
-    if os.getenv("MINIMAX_API_KEY"):
+    """环境变量里没有 key 时，提示用户输入（输入内容不显示）。
+
+    需要哪个环境变量由当前厂商的 api_key_env 决定，换厂商不用改这里。
+    """
+    spec = get_settings().api.provider
+    if os.getenv(spec.api_key_env):
         return
-    print("未检测到环境变量 MINIMAX_API_KEY")
-    key = getpass.getpass("请输入 MiniMax API Key（输入时不显示，留空退出）: ").strip()
+    print(f"未检测到环境变量 {spec.api_key_env}（厂商：{spec.name}）")
+    key = getpass.getpass(
+        f"请输入 {spec.name} 的 API Key（输入时不显示，留空退出）: "
+    ).strip()
     if not key:
         print("未提供 API Key，退出。")
         sys.exit(0)
-    os.environ["MINIMAX_API_KEY"] = key
+    os.environ[spec.api_key_env] = key
 
 
 def ask_yes_no(prompt: str, default: bool = False) -> bool:
@@ -59,6 +66,7 @@ def ask_yes_no(prompt: str, default: bool = False) -> bool:
 def run_once(file_path: str):
     """执行一次完整流水线。"""
     file_type = EXT_TO_TYPE[Path(file_path).suffix.lower()]
+    analyzer = AIAnalyzer()
 
     print("\n[1/4] 正在解析文档...")
     document_content = Parser.parse(file_path, file_type)
@@ -66,11 +74,11 @@ def run_once(file_path: str):
           f"{document_content.metadata.file_size} 字节")
 
     print("\n[2/4] AI 正在生成大纲，请稍候...")
-    outline = AIAnalyzer.analyze(document_content)
+    outline = analyzer.analyze(document_content)
     print(f"✅ 大纲完成：{len(outline.slides)} 页，标题《{outline.title}》")
 
     print("\n[3/4] AI 正在生成布局，请稍候...")
-    layout_info = AIAnalyzer.layout(outline)
+    layout_info = analyzer.layout(outline)
     print("✅ 布局完成")
 
     print("\n[4/4] 正在渲染 PPT...")
@@ -80,6 +88,9 @@ def run_once(file_path: str):
 
 def main():
     ensure_api_key()
+
+    spec = get_settings().api.provider
+    print(f"当前模型：{spec.name} / {spec.model}（可在 Config/config.json 中切换）")
 
     while True:
         try:
