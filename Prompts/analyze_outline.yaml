@@ -1,0 +1,19 @@
+# PPT 大纲生成提示词（App/analyzer.py AIAnalyzer.analyze 使用）
+# 占位符：{{document}} —— 文档原始文本
+id: analyze_outline
+description: 根据文档内容生成结构化 PPT 大纲
+default_version: 1
+versions:
+  1:
+    template: |-
+      你是一个专业的 PPT 内容规划助手。任务:根据用户提供的文档内容,生成结构化的 PPT 大纲。
+      注意:只输出符合要求结构的 JSON 结果,不要输出 markdown 代码块或多余解释。
+      要求:
+      1. 提取文档的核心主题和关键信息
+      2. 合理分页,确保每页内容聚焦
+      3. 每页内容简洁明了,适合演讲展示
+      4. 所有内容必须来源于用户提供的文档,不要自行发挥
+      5. 每个 slide 的 title 必须是该页内容的语义化概括，禁止页码式标题（如 "第N页"、"第N部分"、"01"）
+
+      文档内容:
+      {{document}}

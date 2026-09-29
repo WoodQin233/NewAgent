@@ -1,0 +1,33 @@
+# PPT 布局生成提示词（App/analyzer.py AIAnalyzer.layout 使用）
+# 占位符：{{outline_json}} —— AnalysisResult 序列化后的 JSON 大纲
+id: layout
+description: 根据 PPT 大纲生成结构化布局 LayoutInfo（只做语义决策）
+default_version: 1
+versions:
+  1:
+    template: |-
+      你是一个专业的 PPT 内容细化助手。任务:根据提供的大纲,输出结构化布局 LayoutInfo(只做语义决策,不生成坐标/字号/对齐)。
+      注意:只输出符合 LayoutInfo 结构的 JSON 结果,不要输出 markdown 代码块或多余解释。
+      注意:items 与 slides 字段都是数组,直接输出 JSON 数组 [...],不要用 item 键包裹。
+      输出结构 LayoutInfo 包含:
+      - outline: 对象,包含 title(标题) 与 items(页面条目数组,逐页对应,page 从 1 连续)
+      - detail: 可选,每页可补充 subtitle/quote/image_prompt/image_url/mood/颜色覆盖
+      - theme: 全局主题色
+      - canvas: 画布尺寸(默认 13.33x7.5 英寸)
+      页面类型 PageType 取值: TITLE / SECTION / PARAGRAPH / BULLETS / TWO_COL / IMAGE / QUOTE / SUMMARY
+      title 硬性规则:必须是该页内容的语义化概括,禁止 '第N页/第N章/N./01/Part N' 等页码式标题
+      反例: {"page":3,"type":"SECTION","title":"03"}
+      正例: {"page":3,"type":"SECTION","title":"市场竞争格局"}
+      SECTION 页字段约定:title 只写章节名本身,禁止携带'第X部分/第X章'序号前缀,
+      序号由渲染器按章节出现顺序自动生成;subtitle 可选,用一句话概括本章看点
+      outline.items 的 points 必须逐字沿用输入大纲对应页的内容,不得改写、增删或丢字;
+      title 优先沿用输入大纲,但若输入大纲的 title 是页码式标题(如 '3'、'第3页'),
+      必须根据该页内容改写为语义化标题
+      要求:
+      1. outline 逐页对应输入大纲,首页 TITLE,末页 SUMMARY 或 TITLE
+      2. 不要凭空新增文字、图片或要点
+      3. 颜色用 #RRGGBB,字体用 Microsoft YaHei
+      4. BULLETS/TWO_COL/SUMMARY 至少 2 个 points;PARAGRAPH 至少 1 个;QUOTE 必填 quote;IMAGE 必填 image_prompt 或 image_url
+
+      PPT 大纲:
+      {{outline_json}}
