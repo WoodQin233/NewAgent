@@ -12,7 +12,7 @@ import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 
@@ -41,9 +41,14 @@ class ProviderSpec:
     model: str
     api_key_env: str
     protocol: str = DEFAULT_PROTOCOL
+    # 结构化输出模式：None/"tools" 走工具调用（默认），"json" 让模型直接输出
+    # JSON 文本。部分 Anthropic 兼容厂商（如 GLM）在 tool_use 里会把嵌套
+    # 对象序列化成字符串，导致嵌套 Pydantic 校验失败，需要退回 json 模式。
+    structured_mode: Optional[str] = None
     # 结构化输出时透传给 messages.create 的厂商级参数。
     # 例如推理模型默认开启 thinking 时，不允许强制 tool_choice，
-    # 厂商预设里可以写 {"tool_choice": {"type": "auto"}} 来规避。
+    # 厂商预设里可以写 {"tool_choice": {"type": "auto"}} 来规避；
+    # 也可以传智谱扩展的 {"thinking": {"type": "enabled", "level": "low"}} 降速。
     structured_kwargs: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -100,13 +105,20 @@ def _build_provider(name: str, raw: dict[str, Any]) -> ProviderSpec:
         raise ConfigError(
             f"providers.{name} 缺少必填项：{', '.join(missing)}"
         )
+    structured_raw = dict(raw.get("structured") or {})
+    mode = structured_raw.pop("mode", None)
+    if mode is not None and mode not in ("tools", "json"):
+        raise ConfigError(
+            f"providers.{name}.structured.mode 只能是 'tools' 或 'json'，收到 {mode!r}"
+        )
     return ProviderSpec(
         name=name,
         base_url=raw["base_url"],
         model=raw["model"],
         api_key_env=raw["api_key_env"],
         protocol=raw.get("protocol", DEFAULT_PROTOCOL),
-        structured_kwargs=dict(raw.get("structured") or {}),
+        structured_mode=mode,
+        structured_kwargs=structured_raw,
     )
 
 

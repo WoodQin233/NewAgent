@@ -51,15 +51,22 @@ class AnthropicAdapter:
     def build_structured(self, spec: ProviderSpec, api: ApiSettings) -> Any:
         # 绕开 ChatAnthropic 直连 SDK：部分兼容协议在嵌套 Pydantic 时
         # 会让 LangChain 的解析链路失败
+        #
+        # 默认 TOOLS：把 response_model 转成工具的 input_schema，
+        # 模型"调用工具"后取 tool_use.input；
+        # JSON：模型直接输出 JSON 文本。GLM 等兼容厂商在 tool_use 里
+        # 会把嵌套对象序列化成字符串，嵌套模型只能走这条。
+        mode = instructor.Mode.JSON if spec.structured_mode == "json" else instructor.Mode.TOOLS
         return instructor.from_anthropic(
             Anthropic(
                 api_key=spec.api_key,
                 base_url=spec.base_url,
-            )
+            ),
+            mode=mode,
         )
 
 
-"""协议映射字典，新增厂商时需要在这里注册。"""
+# 协议映射字典，新增协议时需要在这里注册
 _ADAPTERS: dict[str, ProtocolAdapter] = {
     "anthropic": AnthropicAdapter(),
 }

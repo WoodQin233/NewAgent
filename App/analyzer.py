@@ -52,7 +52,7 @@ class AIAnalyzer:
                 prompt=(
                     "你是一个专业的 PPT 内容规划助手。"
                     "任务:根据用户提供的文档内容,生成结构化的 PPT 大纲。\n"
-                    "注意:必须通过工具调用输出结构化结果,不要输出 markdown 代码块或纯文本。\n"
+                    "注意:只输出符合要求结构的 JSON 结果,不要输出 markdown 代码块或多余解释。\n"
                     "要求:\n"
                     "1. 提取文档的核心主题和关键信息\n"
                     "2. 合理分页,确保每页内容聚焦\n"
@@ -76,7 +76,7 @@ class AIAnalyzer:
                 prompt=(
                     "你是一个专业的 PPT 内容细化助手。"
                     "任务:根据提供的大纲,输出结构化布局 LayoutInfo(只做语义决策,不生成坐标/字号/对齐)。\n"
-                    "注意:必须通过工具调用输出结构化结果,不要输出 markdown 代码块或纯文本。\n"
+                    "注意:只输出符合 LayoutInfo 结构的 JSON 结果,不要输出 markdown 代码块或多余解释。\n"
                     "注意:items 与 slides 字段都是数组,直接输出 JSON 数组 [...],不要用 item 键包裹。\n"
                     "输出结构 LayoutInfo 包含:\n"
                     "- outline: 对象,包含 title(标题) 与 items(页面条目数组,逐页对应,page 从 1 连续)\n"
