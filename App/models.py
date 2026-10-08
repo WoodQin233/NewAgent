@@ -54,6 +54,24 @@ class DocumentContent:
         result += f"元数据:[\n {self.metadata}]\n"
         return result
 
+
+@dataclass
+class TokenUsage:
+    """一次 LLM 调用的 token 用量。
+
+    total_tokens = input_tokens + output_tokens（不含缓存 token，
+    缓存 token 单独记录供排查成本时参考）。
+    """
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+
 """
 AI分析模型-大纲
 """

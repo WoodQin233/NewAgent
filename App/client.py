@@ -12,6 +12,7 @@ from typing import Any, Optional, Protocol, TypeVar
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
+from App.models import TokenUsage
 from App.providers import get_adapter
 from Utils.settings import ApiSettings, ProviderSpec, get_settings
 
@@ -62,6 +63,8 @@ class LLMClient:
         # 懒加载：不调用就不建连接，避免 import 期副作用
         self._llm: Optional[BaseChatModel] = None
         self._structured: Optional[Any] = None
+        # 最近一次 extract 调用的 token 用量；调用方在 extract 返回后读取
+        self.last_usage: TokenUsage = TokenUsage()
 
     @property
     def spec(self) -> ProviderSpec:
@@ -109,7 +112,9 @@ class LLMClient:
         if system:
             kwargs["system"] = system
         try:
-            return self._instructor.messages.create(
+            # create_with_completion 返回 (解析后的模型, 原始 completion)，
+            # 原始 completion 上带 usage，用于统计 token 消耗。
+            result, completion = self._instructor.create_with_completion(
                 model=self.spec.model,
                 max_tokens=self.api.max_tokens,
                 temperature=temperature,
@@ -121,8 +126,23 @@ class LLMClient:
                 **kwargs,
                 **overrides,
             )
+            self.last_usage = self._parse_usage(completion)
+            return result
         except Exception as cause:
             raise StructuredOutputError(response_model, cause) from cause
+
+    @staticmethod
+    def _parse_usage(completion: Any) -> TokenUsage:
+        """从原始 completion 提取 token 用量，缺失字段兜底为 0。"""
+        usage = getattr(completion, "usage", None)
+        if usage is None:
+            return TokenUsage()
+        return TokenUsage(
+            input_tokens=getattr(usage, "input_tokens", 0) or 0,
+            output_tokens=getattr(usage, "output_tokens", 0) or 0,
+            cache_read_input_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
+            cache_creation_input_tokens=getattr(usage, "cache_creation_input_tokens", 0) or 0,
+        )
 
 
 @lru_cache(maxsize=1)

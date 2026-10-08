@@ -1,6 +1,7 @@
 import os
 import sys
 import getpass
+import time
 import traceback
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from App.models import FileType
 from App.parser import Parser
 from App.analyzer import AIAnalyzer
 from App.generator import PPTGenerator
+from Utils.stats import RunStats
 from Utils.settings import get_settings
 
 
@@ -64,26 +66,49 @@ def ask_yes_no(prompt: str, default: bool = False) -> bool:
 
 
 def run_once(file_path: str):
-    """执行一次完整流水线。"""
+    """执行一次完整流水线，并在结束（成功或失败）时打印用时与 token 统计。"""
     file_type = EXT_TO_TYPE[Path(file_path).suffix.lower()]
     analyzer = AIAnalyzer()
+    stats = RunStats()
 
-    print("\n[1/4] 正在解析文档...")
-    document_content = Parser.parse(file_path, file_type)
-    print(f"✅ 解析完成：{document_content.metadata.file_name}，"
-          f"{document_content.metadata.file_size} 字节")
+    try:
+        print("\n[1/4] 正在解析文档...")
+        t0 = time.perf_counter()
+        document_content = Parser.parse(file_path, file_type)
+        stats.record("解析文档", time.perf_counter() - t0)
+        print(f"✅ 解析完成：{document_content.metadata.file_name}，"
+              f"{document_content.metadata.file_size} 字节")
 
-    print("\n[2/4] AI 正在生成大纲，请稍候...")
-    outline = analyzer.analyze(document_content)
-    print(f"✅ 大纲完成：{len(outline.slides)} 页，标题《{outline.title}》")
+        print("\n[2/4] AI 正在生成大纲，请稍候...")
+        t0 = time.perf_counter()
+        outline = analyzer.analyze(document_content)
+        u = analyzer.client.last_usage
+        stats.record(
+            "AI大纲生成", time.perf_counter() - t0,
+            u.input_tokens, u.output_tokens, u.total_tokens,
+        )
+        print(f"✅ 大纲完成：{len(outline.slides)} 页，标题《{outline.title}》")
 
-    print("\n[3/4] AI 正在生成布局，请稍候...")
-    layout_info = analyzer.layout(outline)
-    print("✅ 布局完成")
+        print("\n[3/4] AI 正在生成布局，请稍候...")
+        t0 = time.perf_counter()
+        layout_info = analyzer.layout(outline)
+        u = analyzer.client.last_usage
+        stats.record(
+            "AI布局生成", time.perf_counter() - t0,
+            u.input_tokens, u.output_tokens, u.total_tokens,
+        )
+        print("✅ 布局完成")
 
-    print("\n[4/4] 正在渲染 PPT...")
-    output_path = PPTGenerator.generate(layout_info)
-    print(f"🎉 PPT 已生成：{output_path}")
+        print("\n[4/4] 正在渲染 PPT...")
+        t0 = time.perf_counter()
+        output_path = PPTGenerator.generate(layout_info)
+        stats.record("渲染PPT", time.perf_counter() - t0)
+        print(f"🎉 PPT 已生成：{output_path}")
+        return output_path
+    finally:
+        # 无论成功失败，都打印已收集到的统计（失败时为已完成步骤的部分统计）
+        if stats.steps:
+            print(stats.summary())
 
 
 def main():
