@@ -22,6 +22,7 @@ EXT_TO_TYPE = {
     ".txt": FileType.TXT,
     ".docx": FileType.DOCX,
     ".doc": FileType.DOC,
+    ".pdf": FileType.PDF,
 }
 
 

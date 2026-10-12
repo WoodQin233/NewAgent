@@ -4,6 +4,8 @@ from pathlib import Path
 import os
 from dataclasses import dataclass
 
+import pdfplumber
+
 from docx import Document as DocxDocument
 from docx.oxml.table import CT_Tbl
 from docx.oxml.text.paragraph import CT_P
@@ -44,8 +46,33 @@ class TXTParser(BaseParser):
 class PDFParser(BaseParser):
     """PDF解析器"""
     def parse(self, file_path: str, file_type: FileType) -> DocumentContent:
-        """解析PDF文件"""
-        pass
+        """解析PDF文件。纯图片扫描版PDF无法提取文本"""
+        lines: List[str] = []
+        tables: List[TableData] = []
+
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                text = (page.extract_text() or "").strip()
+                if text:
+                    lines.append(text)
+                # 表格文本已包含在 extract_text 结果中，这里只做结构化提取
+                for tbl in page.extract_tables():
+                    rows = [[(cell or "").strip() for cell in row] for row in tbl if row]
+                    if not rows:
+                        continue
+                    # 首行作为表头，其余为数据行
+                    tables.append(TableData(headers=rows[0], rows=rows[1:]))
+
+        return DocumentContent(
+            raw_text="\n".join(lines),
+            tables=tables,
+            metadata=DocumentMetadata(
+                file_name=Path(file_path).name,
+                file_path=file_path,
+                file_type=file_type.value,
+                file_size=os.path.getsize(file_path)
+            )
+        )
 
 class WordParser(BaseParser):
     """Word解析器"""
