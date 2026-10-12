@@ -4,6 +4,12 @@ from pathlib import Path
 import os
 from dataclasses import dataclass
 
+from docx import Document as DocxDocument
+from docx.oxml.table import CT_Tbl
+from docx.oxml.text.paragraph import CT_P
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+
 
 
 class UnsupportedFormatError(Exception):
@@ -44,8 +50,41 @@ class PDFParser(BaseParser):
 class WordParser(BaseParser):
     """Word解析器"""
     def parse(self, file_path: str, file_type: FileType) -> DocumentContent:
-        """解析Word文件"""
-        pass
+        """解析Word文件（.docx）。旧版二进制 .doc 不支持，需先另存为 .docx"""
+        if file_type == FileType.DOC:
+            raise UnsupportedFormatError("暂不支持旧版 .doc 格式，请先将文件另存为 .docx")
+
+        doc = DocxDocument(file_path)
+        lines: List[str] = []
+        tables: List[TableData] = []
+
+        # 按文档顺序遍历正文元素，保持段落与表格的原始先后关系
+        for child in doc.element.body.iterchildren():
+            if isinstance(child, CT_P):
+                text = Paragraph(child, doc).text.strip()
+                if text:
+                    lines.append(text)
+            elif isinstance(child, CT_Tbl):
+                table = Table(child, doc)
+                rows = [[cell.text.strip() for cell in row.cells] for row in table.rows]
+                if not rows:
+                    continue
+                # 首行作为表头，其余为数据行
+                tables.append(TableData(headers=rows[0], rows=rows[1:]))
+                # 表格内容同时写入 raw_text，保证下游分析能看到完整信息
+                for row in rows:
+                    lines.append("\t".join(row))
+
+        return DocumentContent(
+            raw_text="\n".join(lines),
+            tables=tables,
+            metadata=DocumentMetadata(
+                file_name=Path(file_path).name,
+                file_path=file_path,
+                file_type=file_type.value,
+                file_size=os.path.getsize(file_path)
+            )
+        )
 
 
 

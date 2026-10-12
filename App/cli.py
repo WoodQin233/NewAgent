@@ -20,6 +20,8 @@ from Utils.settings import get_settings
 
 EXT_TO_TYPE = {
     ".txt": FileType.TXT,
+    ".docx": FileType.DOCX,
+    ".doc": FileType.DOC,
 }
 
 
