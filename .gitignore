@@ -29,6 +29,9 @@ env/
 # IDE - VS Code
 .vscode/
 
+# IDE - Trae
+.trae/
+
 # IDE - Visual Studio (for collaborators)
 .vs/
 
@@ -51,6 +54,10 @@ logs/
 # Output files
 output/
 output_history/
+
+# Local data (keep sample only)
+data/*
+!data/test.txt
 
 # Temporary files
 *.tmp

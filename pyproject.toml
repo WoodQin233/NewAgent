@@ -1,7 +1,7 @@
 [project]
 name = "newagent"
 version = "0.1.0"
-description = "Add your description here"
+description = "文档驱动的 AI PPT 生成 Agent：解析文档、生成大纲与布局、渲染 PPTX"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
