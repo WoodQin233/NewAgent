@@ -129,10 +129,10 @@ def run_once(file_path: str):
         layout_info = analyzer.layout(outline)
     ui.success("布局完成")
 
-    # [4/4] 渲染 PPT
+    # [4/4] 渲染 PPT(LayoutAgent 选型,失败自动回退规则)
     ui.blank()
     with ui.spinner("[4/4] 正在渲染 PPT..."):
-        output_path = PPTGenerator.generate(layout_info)
+        output_path = PPTGenerator.generate(layout_info, decision_mode="llm")
     ui.done(f"PPT 已生成：{output_path}")
     return output_path
 

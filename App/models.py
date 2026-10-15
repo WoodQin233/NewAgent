@@ -355,9 +355,16 @@ class Box(BaseModel):
     h: float = Field(ge=0.0, le=1.0)
 
 
+class GradientSpec(BaseModel):
+    """线性渐变填充。angle 单位为度,0=向右,90=向下"""
+    start: HexColor
+    end: HexColor
+    angle: float = Field(default=90.0, ge=0.0, lt=360.0)
+
+
 class ShapeBox(BaseModel):
     """Renderer 内部:一个形状 + 相对坐标 + z"""
-    kind: Literal["textbox", "rect", "line", "image"]
+    kind: Literal["textbox", "rect", "round_rect", "circle", "line", "image"]
     box: Box
     z: int = 1
     content: Optional[str] = None
@@ -366,12 +373,110 @@ class ShapeBox(BaseModel):
     color: Optional[HexColor] = None
     fill: Optional[HexColor] = None
     image_path: Optional[str] = None
+    # ── 装饰扩展字段(经典版式不填,渲染行为不变) ──
+    rotation: Optional[float] = Field(
+        default=None, ge=-360.0, le=360.0, description="旋转角度(度,顺时针)"
+    )
+    opacity: Optional[float] = Field(
+        default=None, ge=0.0, le=1.0, description="填充透明度,1=不透明"
+    )
+    gradient: Optional[GradientSpec] = Field(
+        default=None, description="线性渐变填充;给出时优先于 fill"
+    )
+    radius: Optional[float] = Field(
+        default=None, ge=0.0, le=1.0, description="round_rect 的圆角比例"
+    )
+    align: Optional[Literal["left", "center", "right"]] = Field(
+        default=None, description="文本水平对齐;None=left"
+    )
+    stroke: Optional[HexColor] = Field(
+        default=None, description="描边色;给出时形状画描边而非无轮廓(圆环等)"
+    )
 
 
 class PageLayout(BaseModel):
     """Renderer 内部:一页最终的所有形状 + 背景"""
     background: Optional[HexColor] = None
     shapes: List[ShapeBox] = Field(default_factory=list)
+
+
+# ─────────────────── Level 4: 布局原型与 Agent 决策 ───────────────────
+
+SlotRole = Literal[
+    "kicker", "title", "subtitle", "body", "bullets",
+    "quote", "image", "caption", "number", "accent",
+]
+
+
+class SlotDef(BaseModel):
+    """原型中的一个逻辑槽位。
+
+    box 给出时几何固定(经典版式,坐标即最终值);
+    为 None 时由 LayoutEngine 按 grid 区(col/row + span)计算(新版式)。
+    """
+    name: str
+    role: SlotRole
+    box: Optional[Box] = None
+    col: int = Field(default=0, ge=0, le=11, description="grid 起始列(0-based)")
+    row: int = Field(default=0, ge=0, le=7, description="grid 起始行(0-based)")
+    col_span: int = Field(default=12, ge=1, le=12)
+    row_span: int = Field(default=1, ge=1, le=8)
+    z: int = 2
+    font_key: Optional[str] = Field(default=None, description="FontScale 字号键")
+    bold: bool = False
+    align: Optional[Literal["left", "center", "right"]] = None
+
+
+class CompositionSchema(BaseModel):
+    """版式原型:某类页面的一个参数化排布方案。
+
+    Builder 据 schema 产出 ShapeBox;page_types 声明可服务的页面类型;
+    family 用于装饰/选型的差异化控制。
+    """
+    schema_id: str
+    page_types: List[PageType]
+    family: str = Field(default="classic", description="原型家族,用于差异化控制")
+    hint: Optional[str] = Field(default=None, description="适用场景说明(供选型/LLM 参考)")
+    slots: List[SlotDef] = Field(default_factory=list)
+
+
+class LayoutDecision(BaseModel):
+    """LayoutAgent 对单页的语义布局决策:只选原型,不含坐标。"""
+    page: int = Field(ge=1)
+    schema_id: str
+    reason: Optional[str] = None
+
+    @field_validator("page", mode="before")
+    @classmethod
+    def _coerce_page(cls, v):
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError(f"页码 {v} 无效")
+        return v
+
+    @field_validator("schema_id", mode="before")
+    @classmethod
+    def _coerce_schema_id(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
+class LayoutDecisionSet(BaseModel):
+    """LayoutAgent 整体输出:逐页决策列表。"""
+    decisions: List[LayoutDecision] = Field(min_length=1)
+
+    @field_validator("decisions", mode="before")
+    @classmethod
+    def _coerce_decisions(cls, v):
+        # 兜底:模型可能把数组包成 {"decisions": [...]} / {"item": [...]}
+        if isinstance(v, dict):
+            for key in ("decisions", "decision", "item"):
+                if key in v:
+                    return v[key]
+        return v
 
 
 # ─────────────────────── 顶层入口 ───────────────────────

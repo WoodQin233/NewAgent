@@ -55,6 +55,9 @@ logs/
 output/
 output_history/
 
+# Tests
+tests/
+
 # Local data (keep sample only)
 data/*
 !data/test.txt

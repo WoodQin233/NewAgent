@@ -19,6 +19,7 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
+from pptx.oxml.ns import qn
 
 from App.models import (
     LayoutInfo,
@@ -31,6 +32,12 @@ from App.models import (
     PageType,
     Mood,
 )
+from App.layout_engine import LayoutEngine
+from App.layout_engine.fonts import (
+    FontScale,
+    lighten as _lighten,
+    cn_section_num as _cn_section_num,
+)
 
 
 # ─────────────────────────────── 工具函数 ───────────────────────────────
@@ -41,61 +48,21 @@ def _hex_to_rgb(hex_color: str) -> RGBColor:
     return RGBColor(int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
 
 
-def _lighten(hex_color: str, t: float = 0.88) -> str:
-    """把 #RRGGBB 向白色混合 t 比例，返回浅色版（用于卡片底色）"""
-    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
-    mix = lambda c: int(c + (255 - c) * t)
-    return f"#{mix(r):02X}{mix(g):02X}{mix(b):02X}"
-
-
-_CN_DIGITS = "零一二三四五六七八九"
-
-
-def _cn_section_num(n: int) -> str:
-    """章节序号转中文数字：1→'一'…10→'十'…11→'十一'；超过 19 回退阿拉伯数字"""
-    if 1 <= n <= 10:
-        return "十" if n == 10 else _CN_DIGITS[n]
-    if 11 <= n <= 19:
-        return "十" + _CN_DIGITS[n - 10]
-    return str(n)
-
-
 def _box(box: Box, cw: float, ch: float) -> Tuple[float, float, float, float]:
     """把相对 Box 换算成英寸 (left, top, width, height)"""
     return box.x * cw, box.y * ch, box.w * cw, box.h * ch
 
 
-# ─────────────────────────────── 字号策略 ───────────────────────────────
-
-class FontScale:
-    """按 Mood 调整后的字号表。所有数字单位:pt"""
-
-    _BASE = {
-        "title_main":   44,
-        "title_sub":    20,
-        "section_kicker": 16,
-        "section_name": 32,
-        "para":         22,
-        "bullet":       24,
-        "two_col":      22,
-        "quote":        36,
-        "summary":      24,
-        "image_cap":    14,
-    }
-
-    _SCALE = {
-        Mood.PROFESSIONAL: 1.0,
-        Mood.TECH:         1.1,
-        Mood.PLAYFUL:      0.9,
-        Mood.MINIMAL:      0.85,
-        Mood.BOLD:         1.15,
-    }
-
-    @classmethod
-    def get(cls, key: str, mood: Optional[Mood]) -> int:
-        base = cls._BASE[key]
-        scale = cls._SCALE.get(mood, 1.0) if mood else 1.0
-        return max(8, int(round(base * scale)))
+def _set_fill_alpha(shape, alpha: float) -> None:
+    """给纯色填充加透明度(alpha∈[0,1])。python-pptx 无直接 API,操作 XML 实现;
+    结构不符时静默跳过,装饰性效果不阻塞出片。"""
+    try:
+        solid = shape.fill._xPr.find(qn("a:solidFill"))
+        clr = solid.find(qn("a:srgbClr"))
+        el = clr.makeelement(qn("a:alpha"), {"val": str(int(round(alpha * 100000)))})
+        clr.append(el)
+    except Exception:
+        pass
 
 
 # ─────────────────────────────── 渲染策略 ───────────────────────────────
@@ -448,9 +415,14 @@ class LayoutApplier:
             tf.word_wrap = True
             tf.vertical_anchor = MSO_ANCHOR.MIDDLE
             text = sb.content or ""
+            align_map = {
+                "left": PP_ALIGN.LEFT,
+                "center": PP_ALIGN.CENTER,
+                "right": PP_ALIGN.RIGHT,
+            }
             for i, line in enumerate(text.split("\n")):
                 p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                p.alignment = PP_ALIGN.LEFT
+                p.alignment = align_map[sb.align or "left"]
                 run = p.add_run()
                 run.text = line
                 run.font.name = "Microsoft YaHei"
@@ -459,16 +431,46 @@ class LayoutApplier:
                 run.font.bold = sb.bold
                 if sb.color:
                     run.font.color.rgb = _hex_to_rgb(sb.color)
-        elif sb.kind == "rect":
-            rect = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,
-                                           Inches(left), Inches(top),
-                                           Inches(width), Inches(height))
-            if sb.fill:
-                rect.fill.solid()
-                rect.fill.fore_color.rgb = _hex_to_rgb(sb.fill)
+        elif sb.kind in ("rect", "round_rect", "circle"):
+            shape_type = {
+                "rect": MSO_SHAPE.RECTANGLE,
+                "round_rect": MSO_SHAPE.ROUNDED_RECTANGLE,
+                "circle": MSO_SHAPE.OVAL,
+            }[sb.kind]
+            rect = slide.shapes.add_shape(shape_type,
+                                          Inches(left), Inches(top),
+                                          Inches(width), Inches(height))
+            fill = rect.fill
+            if sb.gradient:
+                fill.gradient()
+                stops = fill.gradient_stops
+                stops[0].position = 0.0
+                stops[0].color.rgb = _hex_to_rgb(sb.gradient.start)
+                stops[1].position = 1.0
+                stops[1].color.rgb = _hex_to_rgb(sb.gradient.end)
+                try:
+                    fill.gradient_angle = sb.gradient.angle
+                except Exception:
+                    pass  # 个别模板不支持角度设置,保留默认方向
+            elif sb.fill:
+                fill.solid()
+                fill.fore_color.rgb = _hex_to_rgb(sb.fill)
+                if sb.opacity is not None:
+                    _set_fill_alpha(rect, sb.opacity)
             else:
-                rect.fill.background()
-            rect.line.fill.background()
+                fill.background()
+            if sb.stroke:
+                rect.line.color.rgb = _hex_to_rgb(sb.stroke)
+                rect.line.width = Pt(1.5)
+            else:
+                rect.line.fill.background()
+            if sb.kind == "round_rect" and sb.radius is not None:
+                try:
+                    rect.adjustments[0] = sb.radius
+                except Exception:
+                    pass  # 圆角比例不支持时用形状默认值
+            if sb.rotation:
+                rect.rotation = float(sb.rotation) % 360
         elif sb.kind == "line":
             slide.shapes.add_connector(
                 1,
@@ -499,9 +501,12 @@ class PPTGenerator:
     """根据 LayoutInfo 渲染 PPT"""
 
     @staticmethod
-    def generate(layout: LayoutInfo) -> str:
+    def generate(layout: LayoutInfo, decision_mode: str = "rules",
+                 client: Optional[object] = None) -> str:
         """
         主入口：渲染整个演示文稿并保存为 .pptx 文件，返回输出路径。
+
+        decision_mode: "legacy" 旧版式基线 / "rules" 规则选型 / "llm" LayoutAgent 选型
 
         流程：
         1. 加载空白模板；
@@ -522,14 +527,22 @@ class PPTGenerator:
             for ds in layout.detail.slides:
                 detail_index[ds.page] = ds
 
-        # ── 4. 逐页渲染 ───────────────────────────────────────────────
-        renderer = PageRenderer(theme=layout.theme)
+        # ── 4. 逐页渲染(布局引擎:语义决策 → 几何编译) ────────────────
+        engine = LayoutEngine(theme=layout.theme, canvas=layout.canvas,
+                              decision_mode=decision_mode, client=client)
         blank_layout = prs.slide_layouts[6]
         cw, ch = layout.canvas.width, layout.canvas.height
-        for item in layout.outline.items:
-            page_layout = renderer.render(item, detail_index.get(item.page))
+        for page_layout in engine.render_deck(layout.outline.items, detail_index):
             slide = prs.slides.add_slide(blank_layout)
             LayoutApplier.apply(slide, page_layout, cw, ch)
+        report = engine.last_report
+        if report is not None and not report.gate_pass:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "布局质量门禁未通过: 修复后残留 %d 项形状级问题 / %d 项风格问题,详见报告",
+                len(report.unfixable), len(report.style_open),
+            )
 
         # ── 5. 保存 ───────────────────────────────────────────────────
         output_dir = "output"

@@ -58,6 +58,7 @@ class PromptID(str, Enum):
 
     ANALYZE_OUTLINE = "analyze_outline"
     LAYOUT = "layout"
+    LAYOUT_DECISION = "layout_decision"
 
 
 class PromptManager:
@@ -181,6 +182,16 @@ def render_prompt(
     pid: Literal[PromptID.LAYOUT],
     *,
     outline_json: str,
+    version: Optional[int] = None,
+) -> str: ...
+
+
+@overload
+def render_prompt(
+    pid: Literal[PromptID.LAYOUT_DECISION],
+    *,
+    schema_catalog: str,
+    pages_json: str,
     version: Optional[int] = None,
 ) -> str: ...
 
