@@ -12,6 +12,8 @@
 from dataclasses import dataclass, field
 from typing import List
 
+from Utils.ui import c
+
 
 @dataclass
 class StepStats:
@@ -73,25 +75,28 @@ class RunStats:
         """返回可读的汇总表字符串。"""
         lines: List[str] = []
         lines.append("")
-        lines.append("═══ 运行统计 ═══")
+        lines.append(c("═══ 运行统计 ═══", "title"))
         header = f"{'步骤':<14}{'耗时(s)':>10}{'输入tokens':>14}{'输出tokens':>14}{'总tokens':>12}"
         lines.append(header)
         lines.append("─" * len(header))
         for s in self.steps:
             lines.append(
                 f"{s.name:<14}"
-                f"{s.elapsed_sec:>10.2f}"
+                f"{c(f'{s.elapsed_sec:>10.2f}', 'num')}"
                 f"{s.input_tokens:>14,}"
                 f"{s.output_tokens:>14,}"
                 f"{s.total_tokens:>12,}"
             )
         lines.append("─" * len(header))
         lines.append(
-            f"{'合计':<14}"
-            f"{self.total_elapsed:>10.2f}"
-            f"{self.total_input_tokens:>14,}"
-            f"{self.total_output_tokens:>14,}"
-            f"{self.total_tokens:>12,}"
+            c(
+                f"{'合计':<14}"
+                f"{self.total_elapsed:>10.2f}"
+                f"{self.total_input_tokens:>14,}"
+                f"{self.total_output_tokens:>14,}"
+                f"{self.total_tokens:>12,}",
+                "warn_bold",
+            )
         )
         return "\n".join(lines)
 
